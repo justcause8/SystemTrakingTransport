@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -14,22 +15,31 @@ class InfoActivity : AppCompatActivity() {
     private lateinit var rvVehicleList: RecyclerView
     private lateinit var vehicleAdapter: VehicleAdapter
     private val vehicleInfoList = mutableListOf<Vehicle>()
+    private lateinit var storageManager: StorageManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_info)
 
-        //Создаем список в RecyclerView
-        rvVehicleList = findViewById(R.id.rvVehicleList)
+        storageManager = StorageManager() // Инициализация StorageManager
+
+        rvVehicleList = findViewById(R.id.rvVehicleList) //Создаем список в RecyclerView
         rvVehicleList.layoutManager = GridLayoutManager(this, 3)
 
-        //Связываем адаптер и список
+        // Получаем данные из SharedPreferences и добавляем их в список
+        val vehicleList = storageManager.getFromSharedPreferences(this)
+        vehicleInfoList.addAll(vehicleList)
+
+        // Связываем адаптер и список
         vehicleAdapter = VehicleAdapter(vehicleInfoList) { position ->
             vehicleAdapter.setSelectedItem(position)
         }
         rvVehicleList.adapter = vehicleAdapter
 
-        //Извлекаем из Intent переданный список
+        // Обновляем адаптер, чтобы отображать новые данные
+        vehicleAdapter.notifyDataSetChanged()
+
+        // Извлекаем из Intent переданный список
         val receivedList = intent.getParcelableArrayListExtra<Vehicle>("vehicleList") ?: arrayListOf()
         vehicleInfoList.addAll(receivedList)
         vehicleAdapter.notifyDataSetChanged()
@@ -53,6 +63,9 @@ class InfoActivity : AppCompatActivity() {
                         // Удаление элемента
                         vehicleInfoList.removeAt(position)
                         vehicleAdapter.notifyDataSetChanged()
+
+                        // Обновляем SharedPreferences после удаления
+                        storageManager.saveToSharedPreferences(viewHolder.itemView.context, vehicleInfoList)
                     }
                     ItemTouchHelper.RIGHT -> {
                         // Переход на редактирование
@@ -86,6 +99,9 @@ class InfoActivity : AppCompatActivity() {
             if (updatedVehicle != null && editPosition != -1) {  // Если оба значения корректные
                 // Обновляем элемент через адаптер
                 vehicleAdapter.editItem(editPosition, updatedVehicle)
+
+                // Обновляем SharedPreferences после редактирования
+                storageManager.saveToSharedPreferences(this, vehicleInfoList)
             }
         }
     }

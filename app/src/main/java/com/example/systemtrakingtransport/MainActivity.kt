@@ -87,10 +87,18 @@ class MainActivity : AppCompatActivity() {
             setResult(RESULT_OK, resultIntent)
             finish()
         } else {
-            // Добавление нового объекта в список
-            vehicleInfoList.add(updatedVehicle)
+            val storageManager = StorageManager()
 
-            // Очищаем поля
+            // Загружаем существующие данные из SharedPreferences
+            val existingVehicles = storageManager.getFromSharedPreferences(this).toMutableList()
+
+            // Добавляем новый транспорт в список
+            existingVehicles.add(updatedVehicle)
+
+            // Сохраняем обновленный список в SharedPreferences
+            storageManager.saveToSharedPreferences(this, existingVehicles)
+
+            // Очищаем поля формы
             etBrand.text.clear()
             etModel.text.clear()
             etYear.text.clear()

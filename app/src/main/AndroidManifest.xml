@@ -24,4 +24,6 @@
         <activity android:name=".InfoActivity"> </activity>
     </application>
 
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:required="false"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:required="false"/>
 </manifest>
