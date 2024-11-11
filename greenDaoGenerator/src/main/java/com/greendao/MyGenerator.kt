@@ -14,6 +14,10 @@ class MyGenerator {
             // Создаем сущность Vehicle
             addVehicleEntity(schema)
 
+            // Создаем таблицы для седанов, универсалов и внедорожников
+            addSedanTable(schema)
+            addWagonTable(schema)
+            addSuvTable(schema)
             try {
                 // Генерация DAO классов
                 DaoGenerator().generateAll(schema, "app/src/main/java")
@@ -27,7 +31,7 @@ class MyGenerator {
             val vehicle = schema.addEntity("Vehicle")
 
             // Создаем поле id с автоинкрементом
-            val idProperty: Property = vehicle.addIdProperty().autoincrement().getProperty()
+            vehicle.addIdProperty().autoincrement().primaryKey()
 
             // Добавляем другие поля с их типами и обязательностью
             vehicle.addStringProperty("brand").notNull()
@@ -37,6 +41,36 @@ class MyGenerator {
 
             // Возвращаем сущность
             return vehicle
+        }
+
+        // Создаем таблицу для седанов
+        private fun addSedanTable(schema: Schema): Entity {
+            val sedan = schema.addEntity("Sedan")
+
+            // Поле id из таблицы Vehicle (связывает Sedan с конкретным Vehicle)
+            sedan.addLongProperty("vehicleId").notNull()
+
+            return sedan
+        }
+
+        // Создаем таблицу для универсалов
+        private fun addWagonTable(schema: Schema): Entity {
+            val wagon = schema.addEntity("Wagon")
+
+            // Поле id из таблицы Vehicle (связывает Wagon с конкретным Vehicle)
+            wagon.addLongProperty("vehicleId").notNull()
+
+            return wagon
+        }
+
+        // Создаем таблицу для внедорожников
+        private fun addSuvTable(schema: Schema): Entity {
+            val suv = schema.addEntity("Suv")
+
+            // Поле id из таблицы Vehicle (связывает Suv с конкретным Vehicle)
+            suv.addLongProperty("vehicleId").notNull()
+
+            return suv
         }
     }
 }

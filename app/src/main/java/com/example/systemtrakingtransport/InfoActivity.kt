@@ -9,7 +9,6 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.example.systemtrackingtransport.DatabaseHelper
-import com.example.systemtrackingtransport.VehicleAdapter
 import com.example.systemtrackingtransport.db.DaoSession
 import com.example.systemtrackingtransport.db.Vehicle
 

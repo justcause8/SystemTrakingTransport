@@ -1,11 +1,10 @@
-package com.example.systemtrackingtransport
+package com.example.systemtrakingtransport
 
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.example.systemtrakingtransport.R
 
 class VehicleAdapter(
     private val vehicleList: MutableList<com.example.systemtrackingtransport.db.Vehicle>, // Список транспортных средств
