@@ -1,6 +1,8 @@
 package com.example.systemtrakingtransport
+
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.GestureDetector
 import android.view.Menu
 import android.view.MenuItem
@@ -11,6 +13,9 @@ import android.widget.RadioGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.GestureDetectorCompat
+import com.example.systemtrackingtransport.DatabaseHelper
+import com.example.systemtrackingtransport.db.DaoSession
+import com.example.systemtrackingtransport.db.Vehicle
 
 class MainActivity : AppCompatActivity() {
     private lateinit var etBrand: EditText
@@ -19,56 +24,71 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rgVehicleType: RadioGroup
     private lateinit var btnSubmit: Button
     private lateinit var gestureDetector: GestureDetectorCompat
-    private val vehicleInfoList = mutableListOf<Vehicle>()
+    private lateinit var daoSession: DaoSession
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Инициализация элементов интерфейса
         etBrand = findViewById(R.id.etBrand)
         etModel = findViewById(R.id.etModel)
         etYear = findViewById(R.id.etYear)
         rgVehicleType = findViewById(R.id.rgVehicleType)
         btnSubmit = findViewById(R.id.btnSubmit)
 
-        // Получение данных для редактирования, если они были переданы из другого Activity
-        val vehicleToEdit = intent.getParcelableExtra<Vehicle>("vehicleToEdit")
-        val isEditMode = vehicleToEdit != null //Если данные переданы, то режим включаем редактирования
+        // Подключение к базе данных
+        try {
+            val databaseHelper = DatabaseHelper(this)
+            daoSession = databaseHelper.getDaoSessionInstance()
+            Log.d("Database", "Database connected successfully")
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка подключения к базе данных: ${e.message}", Toast.LENGTH_LONG).show()
+            Log.e("Database", "Error: ${e.message}", e)
+        }
 
-        if (isEditMode) {
-            etBrand.setText(vehicleToEdit?.brand)
-            etModel.setText(vehicleToEdit?.model)
-            etYear.setText(vehicleToEdit?.year)
+        // Получение данных для редактирования
+        val vehicleId = intent.getLongExtra("vehicleId", -1)
+        val isEditMode = vehicleId != -1L
+        val vehicleToEdit = if (isEditMode) {
+            daoSession.vehicleDao.load(vehicleId)
+        } else null
 
-            when (vehicleToEdit?.type) {
+        // Заполнение полей данными при редактировании
+        vehicleToEdit?.let {
+            etBrand.setText(it.brand)
+            etModel.setText(it.model)
+            etYear.setText(it.year)
+            when (it.type) {
                 "Седан" -> rgVehicleType.check(R.id.rbSedan)
                 "Универсал" -> rgVehicleType.check(R.id.rbWagon)
                 "Внедорожник" -> rgVehicleType.check(R.id.rbSuv)
             }
         }
 
-        //Обработчик для кнопки отправки
+        // Обработчик нажатия на кнопку "Submit"
         btnSubmit.setOnClickListener {
             submitForm(isEditMode, vehicleToEdit)
         }
 
-        // Настройка свайпа вправо для отправки данных через GestureDetector
+        // Инициализация детектора жестов для свайпов
         gestureDetector = GestureDetectorCompat(this, SwipeGestureListener(isEditMode, vehicleToEdit))
-
-        // Применяем свайп к кнопке отправки
         btnSubmit.setOnTouchListener { _, event -> gestureDetector.onTouchEvent(event) }
     }
 
+    // Функция для отправки формы (добавление или обновление)
     private fun submitForm(isEditMode: Boolean, vehicleToEdit: Vehicle?) {
         val brand = etBrand.text.toString().trim()
         val model = etModel.text.toString().trim()
         val year = etYear.text.toString().trim()
 
+        // Проверка на пустые поля
         if (brand.isEmpty() || model.isEmpty() || year.isEmpty()) {
             Toast.makeText(this, "Заполните все поля", Toast.LENGTH_SHORT).show()
             return
         }
 
+        // Определение типа автомобиля
         val vehicleType = when (rgVehicleType.checkedRadioButtonId) {
             R.id.rbSedan -> "Седан"
             R.id.rbWagon -> "Универсал"
@@ -76,59 +96,38 @@ class MainActivity : AppCompatActivity() {
             else -> "Неизвестно"
         }
 
-        // Создаем объект Vehicle с введенными данными
-        val updatedVehicle = Vehicle(brand, model, year, vehicleType)
-
-        if (isEditMode) {
-            // Возвращаем обновленный объект обратно в InfoActivity
-            val resultIntent = Intent()
-            resultIntent.putExtra("updatedVehicle", updatedVehicle)
-            resultIntent.putExtra("editPosition", intent.getIntExtra("editPosition", -1))
-            setResult(RESULT_OK, resultIntent)
-            finish()
-        } else {
-            val storageManager = StorageManager()
-
-            // Загружаем существующие данные из SharedPreferences
-            val existingVehicles = storageManager.getFromSharedPreferences(this).toMutableList()
-
-            // Добавляем новый транспорт в список
-            existingVehicles.add(updatedVehicle)
-
-            // Сохраняем обновленный список в SharedPreferences
-            storageManager.saveToSharedPreferences(this, existingVehicles)
-
-            // Очищаем поля формы
-            etBrand.text.clear()
-            etModel.text.clear()
-            etYear.text.clear()
-            rgVehicleType.clearCheck()
-        }
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.main_menu, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.pageMain -> {
-                return true // Оставляем на MainActivity
-            }
-            R.id.pageInfo -> {
-                // Переход к InfoActivity с передачей списка транспорта
-                val intent = Intent(this, InfoActivity::class.java)
-                intent.putParcelableArrayListExtra("vehicleList", ArrayList(vehicleInfoList))
-                startActivity(intent)
-
-                return true
+        // Создаем или обновляем объект в базе данных
+        if (isEditMode && vehicleToEdit != null) {
+            vehicleToEdit.brand = brand
+            vehicleToEdit.model = model
+            vehicleToEdit.year = year
+            vehicleToEdit.type = vehicleType
+            try {
+                daoSession.vehicleDao.update(vehicleToEdit)
+                Toast.makeText(this, "Данные обновлены", Toast.LENGTH_SHORT).show()
+                Log.d("Database", "Vehicle updated successfully")
+            } catch (e: Exception) {
+                Log.e("Database", "Error updating vehicle: ${e.message}", e)
             }
         }
-        return super.onOptionsItemSelected(item)
+        else {
+            val newVehicle = Vehicle(null, brand, model, year, vehicleType)
+            try {
+                daoSession.vehicleDao.insert(newVehicle)
+                Toast.makeText(this, "Данные добавлены", Toast.LENGTH_SHORT).show()
+                Log.d("Database", "New vehicle inserted successfully")
+                // Очистка полей после добавления
+                etBrand.text.clear()
+                etModel.text.clear()
+                etYear.text.clear()
+                rgVehicleType.clearCheck()
+            } catch (e: Exception) {
+                Log.e("Database", "Error inserting vehicle: ${e.message}", e)
+            }
+        }
     }
 
-    //Обработчик свайпов
+    // Обработчик жестов (свайп)
     private inner class SwipeGestureListener(val isEditMode: Boolean, val vehicleToEdit: Vehicle?) :
         GestureDetector.SimpleOnGestureListener() {
 
@@ -141,16 +140,30 @@ class MainActivity : AppCompatActivity() {
             velocityX: Float,
             velocityY: Float
         ): Boolean {
-            val diffX = e2?.x?.minus(e1!!.x) ?: 0.0f
-            val diffY = e2?.y?.minus(e1!!.y) ?: 0.0f
-            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
-                if (diffX > 0) {
-                    // Свайп вправо
+            val diffX = e2.x - (e1?.x ?: 0.0f)
+            if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
+                if (diffX > 0) {  // Правый свайп
                     submitForm(isEditMode, vehicleToEdit)
                 }
                 return true
             }
             return false
         }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.pageMain -> return true
+            R.id.pageInfo -> {
+                startActivity(Intent(this, InfoActivity::class.java))
+                return true
+            }
+        }
+        return super.onOptionsItemSelected(item)
     }
 }

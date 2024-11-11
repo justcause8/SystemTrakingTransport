@@ -4,104 +4,110 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.ItemTouchHelper
-import com.google.android.material.snackbar.Snackbar
+import androidx.recyclerview.widget.RecyclerView
+import com.example.systemtrackingtransport.DatabaseHelper
+import com.example.systemtrackingtransport.VehicleAdapter
+import com.example.systemtrackingtransport.db.DaoSession
+import com.example.systemtrackingtransport.db.Vehicle
 
 class InfoActivity : AppCompatActivity() {
     private lateinit var rvVehicleList: RecyclerView
     private lateinit var vehicleAdapter: VehicleAdapter
     private val vehicleInfoList = mutableListOf<Vehicle>()
-    private lateinit var storageManager: StorageManager
+    private lateinit var daoSession: DaoSession
+    private var selectedVehicleId: Long = -1 // Храним ID выбранного автомобиля
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_info)
 
-        storageManager = StorageManager() // Инициализация StorageManager
+        val databaseHelper = DatabaseHelper(this)
+        daoSession = databaseHelper.getDaoSessionInstance()
 
-        rvVehicleList = findViewById(R.id.rvVehicleList) //Создаем список в RecyclerView
+        rvVehicleList = findViewById(R.id.rvVehicleList)
         rvVehicleList.layoutManager = GridLayoutManager(this, 3)
 
-        // Получаем данные из SharedPreferences и добавляем их в список
-        val vehicleList = storageManager.getFromSharedPreferences(this)
-        vehicleInfoList.addAll(vehicleList)
+        // Извлекаем ID автомобиля из Intent
+        selectedVehicleId = intent.getLongExtra("vehicleId", -1)
 
-        // Связываем адаптер и список
+        // Инициализация адаптера ДО загрузки данных
         vehicleAdapter = VehicleAdapter(vehicleInfoList) { position ->
             vehicleAdapter.setSelectedItem(position)
         }
         rvVehicleList.adapter = vehicleAdapter
 
-        // Обновляем адаптер, чтобы отображать новые данные
-        vehicleAdapter.notifyDataSetChanged()
+        // Загружаем данные из базы
+        loadVehiclesFromDatabase()
 
-        // Извлекаем из Intent переданный список
-        val receivedList = intent.getParcelableArrayListExtra<Vehicle>("vehicleList") ?: arrayListOf()
-        vehicleInfoList.addAll(receivedList)
-        vehicleAdapter.notifyDataSetChanged()
-
-        // Настройка ItemTouchHelper для различных свайпов
+        // Установка обработчика свайпов
         val itemTouchHelperCallback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
             override fun onMove(
                 recyclerView: RecyclerView,
                 viewHolder: RecyclerView.ViewHolder,
                 target: RecyclerView.ViewHolder
             ): Boolean {
-                return false // перемещения элементов в списке не поддерживаются
+                return false
             }
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                //Определяем какой элемент выбран (его позицию)
                 val position = viewHolder.adapterPosition
+                val vehicle = vehicleInfoList[position]
 
                 when (direction) {
                     ItemTouchHelper.LEFT -> {
-                        // Удаление элемента
+                        daoSession.vehicleDao.delete(vehicle)
                         vehicleInfoList.removeAt(position)
                         vehicleAdapter.notifyDataSetChanged()
-
-                        // Обновляем SharedPreferences после удаления
-                        storageManager.saveToSharedPreferences(viewHolder.itemView.context, vehicleInfoList)
                     }
                     ItemTouchHelper.RIGHT -> {
-                        // Переход на редактирование
                         editItem(position)
                     }
                 }
             }
         }
 
-        val itemTouchHelper = ItemTouchHelper(itemTouchHelperCallback) //Создаем экземпляр для обработки жестов
-        itemTouchHelper.attachToRecyclerView(rvVehicleList) //Привязываем жесты к RecyclerView
+        val itemTouchHelper = ItemTouchHelper(itemTouchHelperCallback)
+        itemTouchHelper.attachToRecyclerView(rvVehicleList)
+    }
+
+    private fun loadVehiclesFromDatabase() {
+        val vehicles = daoSession.vehicleDao.loadAll()
+        vehicleInfoList.clear()
+        vehicleInfoList.addAll(vehicles)
+
+        // Если передан ID, выделяем его в списке
+        selectedVehicleId.takeIf { it != -1L }?.let { id ->
+            val selectedVehiclePosition = vehicleInfoList.indexOfFirst { it.id == id }
+            if (selectedVehiclePosition != -1) {
+                vehicleAdapter.setSelectedItem(selectedVehiclePosition)
+            }
+        }
+
+        vehicleAdapter.notifyDataSetChanged()
     }
 
     private fun editItem(position: Int) {
         val vehicle = vehicleInfoList[position]
         val intent = Intent(this, MainActivity::class.java)
-
-        // Передаем объект для редактирования в MainActivity
-        intent.putExtra("vehicleToEdit", vehicle)
-        intent.putExtra("editPosition", position)
+        intent.putExtra("vehicleId", vehicle.id)  // Передаем ID автомобиля для редактирования
         startActivityForResult(intent, REQUEST_EDIT)
     }
 
-    //Возвращаем результат активности
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_EDIT && resultCode == RESULT_OK) { //Если это редактирование и все нормально, то обрабатываем результаты
-            val updatedVehicle = data?.getParcelableExtra<Vehicle>("updatedVehicle") // Извлекаем элемент
-            val editPosition = data?.getIntExtra("editPosition", -1) ?: -1 // Извлекаем позицию
 
-            if (updatedVehicle != null && editPosition != -1) {  // Если оба значения корректные
-                // Обновляем элемент через адаптер
-                vehicleAdapter.editItem(editPosition, updatedVehicle)
+        if (requestCode == REQUEST_EDIT && resultCode == RESULT_OK) {
+            val updatedVehicleId = data?.getLongExtra("updatedVehicleId", -1) ?: -1
+            val updatedPosition = data?.getIntExtra("editPosition", -1) ?: -1
 
-                // Обновляем SharedPreferences после редактирования
-                storageManager.saveToSharedPreferences(this, vehicleInfoList)
+            if (updatedVehicleId != -1L && updatedPosition != -1) {
+                // Обновляем информацию о транспортном средстве в списке
+                val updatedVehicle = daoSession.vehicleDao.load(updatedVehicleId)
+                vehicleInfoList[updatedPosition] = updatedVehicle
+                vehicleAdapter.notifyItemChanged(updatedPosition)
             }
         }
     }
@@ -114,16 +120,12 @@ class InfoActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.pageMain -> {
-                val intent = Intent(this, MainActivity::class.java)
+                val intent = Intent(this, MainActivity::class.java).apply {
+                }
                 startActivity(intent)
                 return true
             }
-            R.id.pageInfo -> {
-                val intent = Intent(this, InfoActivity::class.java)
-                intent.putParcelableArrayListExtra("vehicleList", ArrayList(vehicleInfoList)) // Передаем список
-                startActivity(intent)
-                return true
-            }
+            R.id.pageInfo -> return true
         }
         return super.onOptionsItemSelected(item)
     }

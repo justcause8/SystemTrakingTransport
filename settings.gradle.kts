@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "SystemTrakingTransport"
 include(":app")
- 
+include(":greenDaoGenerator")

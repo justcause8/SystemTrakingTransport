@@ -1,19 +1,20 @@
-package com.example.systemtrakingtransport
+package com.example.systemtrackingtransport
 
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.example.systemtrakingtransport.R
 
 class VehicleAdapter(
-    private val vehicleList: MutableList<Vehicle>, // Список транспортных средств
+    private val vehicleList: MutableList<com.example.systemtrackingtransport.db.Vehicle>, // Список транспортных средств
     private val onVehicleClick: (Int) -> Unit // Лямбда-функция для обработки нажатия на элемент
 ) : RecyclerView.Adapter<VehicleAdapter.VehicleViewHolder>() {
 
     private var selectedItemPosition: Int = RecyclerView.NO_POSITION //выбранная позиция элемента
 
-    // ViewHolder для удерживания элементов представления транспортного средства
+    // ViewHolder для удержания элементов представления транспортного средства
     inner class VehicleViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val brand: TextView = itemView.findViewById(R.id.tvBrand)
         val model: TextView = itemView.findViewById(R.id.tvModel)
@@ -26,6 +27,7 @@ class VehicleAdapter(
                 val position = adapterPosition
                 if (position != RecyclerView.NO_POSITION) {
                     onVehicleClick(position)
+                    setSelectedItem(position) // Устанавливаем выбранный элемент
                 }
             }
         }
@@ -46,6 +48,7 @@ class VehicleAdapter(
         holder.year.text = "Год: ${vehicle.year}"
         holder.type.text = "Тип: ${vehicle.type}"
 
+        // Изменение фона для выбранного элемента
         holder.itemView.setBackgroundColor(
             if (position == selectedItemPosition) {
                 holder.itemView.context.getColor(R.color.selected_item)
@@ -68,7 +71,7 @@ class VehicleAdapter(
     }
 
     // Логика изменения элемента
-    fun editItem(position: Int, updatedVehicle: Vehicle) {
+    fun editItem(position: Int, updatedVehicle: com.example.systemtrackingtransport.db.Vehicle) {
         vehicleList[position] = updatedVehicle // Заменяем элемент на обновленный
         notifyItemChanged(position) // Обновляем измененный элемент
     }

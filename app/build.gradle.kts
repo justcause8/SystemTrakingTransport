@@ -17,6 +17,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -44,6 +45,11 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation ("com.google.code.gson:gson:2.8.8")
     implementation ("org.apache.poi:poi-ooxml:5.2.3")
+    implementation ("org.apache.poi:poi:5.2.3")
+    implementation ("org.greenrobot:greendao:3.3.0")
+    implementation("org.greenrobot:greendao-generator:3.2.2")
+    implementation(libs.transportation.consumer)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
